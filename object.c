@@ -114,6 +114,27 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
     if (len > 0) memcpy(full_obj + header_len, data, len);
 
     compute_hash(full_obj, full_len, id_out);
+    if (object_exists(id_out)) {
+        free(full_obj);
+        return 0;
+    }
+
+    char final_path[512];
+    object_path(id_out, final_path, sizeof(final_path));
+
+    char dir_path[512];
+    snprintf(dir_path, sizeof(dir_path), "%s", final_path);
+    char *last_slash = strrchr(dir_path, '/');
+    if (!last_slash) {
+        free(full_obj);
+        return -1;
+    }
+    *last_slash = '\0';
+    if (mkdir(dir_path, 0755) != 0 && access(dir_path, F_OK) != 0) {
+        free(full_obj);
+        return -1;
+    }
+
     free(full_obj);
     return -1;
 }
