@@ -132,8 +132,32 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 //
 // Returns 0 on success, -1 on error.
 int tree_from_index(ObjectID *id_out) {
-    // TODO: Implement recursive tree building
-    // (See Lab Appendix for logical steps)
+    
+    Index index;
+    index.count = 0;
+
+    FILE *f = fopen(INDEX_FILE, "r");
+    if (!f) return -1;
+    while (index.count < MAX_INDEX_ENTRIES) {
+        unsigned mode = 0;
+        char hash_hex[HASH_HEX_SIZE + 1];
+        unsigned long long mtime = 0;
+        unsigned size = 0;
+        char path[512];
+        int n = fscanf(f, "%o %64s %llu %u %511[^\n]\n", &mode, hash_hex, &mtime, &size, path);
+        if (n == EOF) break;
+        if (n != 5 || hex_to_hash(hash_hex, &index.entries[index.count].hash) != 0) {
+            fclose(f);
+            return -1;
+        }
+        index.entries[index.count].mode = mode;
+        index.entries[index.count].mtime_sec = (uint64_t)mtime;
+        index.entries[index.count].size = size;
+        snprintf(index.entries[index.count].path, sizeof(index.entries[index.count].path), "%s", path);
+        index.count++;
+    }
+    fclose(f);
+
     (void)id_out;
     return -1;
 }
