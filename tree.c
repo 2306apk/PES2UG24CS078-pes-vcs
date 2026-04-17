@@ -132,7 +132,7 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 //
 // Returns 0 on success, -1 on error.
 int tree_from_index(ObjectID *id_out) {
-    
+    if (!id_out) return -1;
     Index index;
     index.count = 0;
 
@@ -191,7 +191,9 @@ int tree_from_index(ObjectID *id_out) {
                 snprintf(seen_dirs[seen_count++].name, sizeof(seen_dirs[0].name), "%s", dirname);
 
                 char child_prefix[1024];
-                snprintf(child_prefix, sizeof(child_prefix), "%s%s/", prefix, dirname);
+                if (snprintf(child_prefix, sizeof(child_prefix), "%s%s/", prefix, dirname) >= (int)sizeof(child_prefix)) {
+                    return -1;
+                }
                 ObjectID child_id;
                 if (write_level(idx, child_prefix, &child_id) != 0) return -1;
 
