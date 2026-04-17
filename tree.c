@@ -158,6 +158,34 @@ int tree_from_index(ObjectID *id_out) {
     }
     fclose(f);
 
-    (void)id_out;
+        int write_level(const Index *idx, const char *prefix, ObjectID *out_id) {
+        Tree tree = {0};
+        size_t prefix_len = strlen(prefix);
+
+        for (int i = 0; i < idx->count; i++) {
+            const char *path = idx->entries[i].path;
+            if (strncmp(path, prefix, prefix_len) != 0) continue;
+
+            const char *rest = path + prefix_len;
+            if (*rest == '\0') continue;
+
+            if (strchr(rest, '/')) continue;
+
+            if (tree.count >= MAX_TREE_ENTRIES) return -1;
+            TreeEntry *e = &tree.entries[tree.count++];
+            e->mode = idx->entries[i].mode;
+            e->hash = idx->entries[i].hash;
+            snprintf(e->name, sizeof(e->name), "%s", rest);
+        }
+
+        void *raw = NULL;
+        size_t raw_len = 0;
+        if (tree_serialize(&tree, &raw, &raw_len) != 0) return -1;
+        int rc = object_write(OBJ_TREE, raw, raw_len, out_id);
+        free(raw);
+        return rc;
+    }
+
+    return write_level(&index, "", id_out);
     return -1;
 }
