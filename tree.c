@@ -158,9 +158,12 @@ int tree_from_index(ObjectID *id_out) {
     }
     fclose(f);
 
+    typedef struct { char name[256]; } DirName;
         int write_level(const Index *idx, const char *prefix, ObjectID *out_id) {
         Tree tree = {0};
         size_t prefix_len = strlen(prefix);
+        DirName seen_dirs[MAX_TREE_ENTRIES];
+        int seen_count = 0;
 
         for (int i = 0; i < idx->count; i++) {
             const char *path = idx->entries[i].path;
@@ -168,8 +171,37 @@ int tree_from_index(ObjectID *id_out) {
 
             const char *rest = path + prefix_len;
             if (*rest == '\0') continue;
+            const char *slash = strchr(rest, '/');
+            if (slash) {
+                size_t dir_len = (size_t)(slash - rest);
+                if (dir_len == 0 || dir_len >= sizeof(seen_dirs[0].name)) return -1;
+                char dirname[256];
+                memcpy(dirname, rest, dir_len);
+                dirname[dir_len] = '\0';
 
-            if (strchr(rest, '/')) continue;
+                int already_seen = 0;
+                for (int j = 0; j < seen_count; j++) {
+                    if (strcmp(seen_dirs[j].name, dirname) == 0) {
+                        already_seen = 1;
+                        break;
+                    }
+                }
+                if (already_seen) continue;
+                if (seen_count >= MAX_TREE_ENTRIES) return -1;
+                snprintf(seen_dirs[seen_count++].name, sizeof(seen_dirs[0].name), "%s", dirname);
+
+                char child_prefix[1024];
+                snprintf(child_prefix, sizeof(child_prefix), "%s%s/", prefix, dirname);
+                ObjectID child_id;
+                if (write_level(idx, child_prefix, &child_id) != 0) return -1;
+
+                if (tree.count >= MAX_TREE_ENTRIES) return -1;
+                TreeEntry *e = &tree.entries[tree.count++];
+                e->mode = MODE_DIR;
+                e->hash = child_id;
+                snprintf(e->name, sizeof(e->name), "%s", dirname);
+                continue;
+            }
 
             if (tree.count >= MAX_TREE_ENTRIES) return -1;
             TreeEntry *e = &tree.entries[tree.count++];
