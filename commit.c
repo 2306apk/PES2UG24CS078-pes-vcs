@@ -211,5 +211,14 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     snprintf(commit.author, sizeof(commit.author), "%s", pes_author());
     commit.timestamp = (uint64_t)time(NULL);
     snprintf(commit.message, sizeof(commit.message), "%s", message);
-    return -1;
+    
+    void *raw = NULL;
+    size_t raw_len = 0;
+    if (commit_serialize(&commit, &raw, &raw_len) != 0) return -1;
+
+    int rc = object_write(OBJ_COMMIT, raw, raw_len + 1, commit_id_out);
+    free(raw);
+    if (rc != 0) return -1;
+
+    return head_update(commit_id_out);
 }
