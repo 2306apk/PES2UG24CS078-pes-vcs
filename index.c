@@ -1,3 +1,4 @@
+@ -1,284 +1,297 @@
 // index.c — Staging area implementation
 //
 // Text format of .pes/index (one entry per line, sorted by path):
@@ -24,7 +25,6 @@
 #include <unistd.h>
 #include <dirent.h>
 
-// ─── PROVIDED ────────────────────────────────────────────────────────────────
 int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
 
 static int compare_index_entries(const void *a, const void *b) {
@@ -32,6 +32,9 @@ static int compare_index_entries(const void *a, const void *b) {
     const IndexEntry *eb = (const IndexEntry *)b;
     return strcmp(ea->path, eb->path);
 }
+
+
+// ─── PROVIDED ────────────────────────────────────────────────────────────────
 
 // Find an index entry by path (linear scan).
 IndexEntry* index_find(Index *index, const char *path) {
@@ -114,7 +117,7 @@ int index_status(const Index *index) {
                     break;
                 }
             }
-            
+
             if (!is_tracked) {
                 struct stat st;
                 stat(ent->d_name, &st);
@@ -176,6 +179,7 @@ int index_load(Index *index) {
     fclose(f);
     return 0;
 }
+
 // Save the index to .pes/index atomically.
 //
 // HINTS - Useful functions and syscalls:
@@ -274,8 +278,20 @@ int index_add(Index *index, const char *path) {
     int rc = object_write(OBJ_BLOB, buf, (size_t)file_len, &blob_id);
     free(buf);
     if (rc != 0) return -1;
+  struct stat st;
+    if (stat(path, &st) != 0) return -1;
 
-    (void)index;
-    (void)blob_id;
-    return -1;
+    IndexEntry *entry = index_find(index, path);
+    if (!entry) {
+        if (index->count >= MAX_INDEX_ENTRIES) return -1;
+        entry = &index->entries[index->count++];
+    }
+
+    entry->mode = (st.st_mode & S_IXUSR) ? 0100755 : 0100644;
+    entry->hash = blob_id;
+    entry->mtime_sec = (uint64_t)st.st_mtime;
+    entry->size = (uint32_t)st.st_size;
+    snprintf(entry->path, sizeof(entry->path), "%s", path);
+
+    return index_save(index);
 }
